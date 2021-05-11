@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using BlackJackGuru.Enumerations;
 
 namespace BlackJackGuru.Statistics
 {
     public class Stats
     {
+        private int currentWinStreak;
+        private int currentLoseStreak;
+
         public Stats()
         {
 
@@ -22,6 +26,12 @@ namespace BlackJackGuru.Statistics
         public int NumberOfHandsPlayed { get; private set; }
 
         public int NumberOfSplitHands { get; private set; }
+
+        public int LongestWinStreak { get; private set; }
+
+        public int LongestLoseStreak { get; private set; }
+
+        public HandResult PreviousHandResult { get; private set; }
 
         #endregion
 
@@ -51,6 +61,22 @@ namespace BlackJackGuru.Statistics
         {
             NumberOfWins++;
             NumberOfHandsPlayed++;
+            currentLoseStreak = 0;
+
+            if (PreviousHandResult != HandResult.Win)
+            {
+                PreviousHandResult = HandResult.Win;
+                currentWinStreak = 1;
+            }
+            else
+            {
+                currentWinStreak++;
+            }
+
+            if (currentWinStreak > LongestWinStreak)
+            {
+                LongestWinStreak = currentWinStreak;
+            }
         }
 
         public void RecordSplitHand()
@@ -63,12 +89,29 @@ namespace BlackJackGuru.Statistics
         {
             NumberOfLosses++;
             NumberOfHandsPlayed++;
+            currentWinStreak = 0;
+
+            if (PreviousHandResult != HandResult.Lose)
+            {
+                PreviousHandResult = HandResult.Lose;
+                currentLoseStreak = 1;
+            }
+            else
+            {
+                currentLoseStreak++;
+            }
+
+            if (currentLoseStreak > LongestLoseStreak)
+            {
+                LongestLoseStreak = currentLoseStreak;
+            }
         }
 
         public void RecordPush()
         {
             NumberOfPushes++;
             NumberOfHandsPlayed++;
+            PreviousHandResult = HandResult.Push;
         }
 
         public void Reset()
@@ -78,6 +121,10 @@ namespace BlackJackGuru.Statistics
             NumberOfHandsPlayed = 0;
             NumberOfPushes = 0;
             NumberOfSplitHands = 0;
+            LongestWinStreak = 0;
+            LongestLoseStreak = 0;
+            currentLoseStreak = 0;
+            currentWinStreak = 0;
         }
 
         public override string ToString()
@@ -87,7 +134,9 @@ namespace BlackJackGuru.Statistics
                    "\nPushes: " + NumberOfPushes + " (" + PushPercentage + "%)" +
                    "\nPush & Win Percent: " + (PushPercentage + WinPercentage) + "%" +
                    "\nSplit Hands: " + NumberOfSplitHands + "(" + SplitPercentage + "%)" +
-                   "\nTotal Hands Played: " + NumberOfHandsPlayed;
+                   "\nTotal Hands Played: " + NumberOfHandsPlayed +
+                   "\nLongest Win Streak: " + LongestWinStreak +
+                   "\nLongest Lose Streak: " + LongestLoseStreak;
         }
 
         #endregion

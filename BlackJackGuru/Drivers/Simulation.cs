@@ -6,6 +6,7 @@ using BlackJackGuru.Strategy.PlayerActions;
 using BlackJackGuru.Participants;
 using BlackJackGuru.Enumerations;
 using BlackJackGuru.GameItems;
+using BlackJackGuru.Strategy.Betting;
 
 namespace BlackJackGuru.Drivers
 {
@@ -18,6 +19,7 @@ namespace BlackJackGuru.Drivers
         private Shoe shoe;
         private Dealer dealer;
         private List<Player> playerList;
+        private List<Player> removedPlayers;
         private HiLoCounter counter;
 
         private const string quit = "q";
@@ -28,6 +30,7 @@ namespace BlackJackGuru.Drivers
         {
             completedIterations = 0;
             playerList = new List<Player>();
+            removedPlayers = new List<Player>();
             dealer = new Dealer();
         }
 
@@ -49,10 +52,13 @@ namespace BlackJackGuru.Drivers
                 completedIterations = 0;
                 ResetAll();
 
-                while (completedIterations != numberOfIterations)
+                while (completedIterations != numberOfIterations && PlayersRemain())
                 {
+                    PlaceBets();
+
                     DealCards();
 
+                    //TODO - Implement Insurance possibility (After betting strategies)
                     if (!dealer.HasBlackjack)
                     {
                         HandlePlayerAction();
@@ -61,6 +67,8 @@ namespace BlackJackGuru.Drivers
                     }
 
                     ComputeResults();
+
+                    RemovePlayersWithNoFunds();
 
                     ResetParticipantHands();
 
@@ -85,12 +93,54 @@ namespace BlackJackGuru.Drivers
 
         #region Private Helper Methods
 
+        private void RemovePlayersWithNoFunds()
+        {
+            List<Player> playerToRemove = new List<Player>();
+
+            foreach(Player player in playerList)
+            {
+                if (player.OutOfMoney)
+                {
+                    playerToRemove.Add(player);
+                }
+            }
+
+            foreach(Player player in playerToRemove)
+            {
+                playerList.Remove(player);
+                removedPlayers.Add(player);
+            }
+        }
+
+        private bool PlayersRemain()
+        {
+            return playerList.Count > 0;
+        }
+
+        private void PlaceBets()
+        {
+            foreach(Player player in playerList)
+            {
+                player.Bet();
+            }
+        }
+
         private void PrintStats()
         {
-            for(int i=0; i<numberOfPlayers; i++)
+            int count = 1;
+
+            foreach(Player p in playerList)
             {
-                Player p = playerList[i];
-                Console.WriteLine("\nPlayer " + (i + 1) + " statistics:\n" + p.Statistics);
+                Console.WriteLine("\n\tPlayer " + count + " statistics:\n\n" + p.Statistics);
+                Console.WriteLine("Starting Funds: " + p.StartingFunds + "\nEnding Funds: " + p.Funds);
+                count++;
+            }
+
+            foreach (Player p in removedPlayers)
+            {
+                Console.WriteLine("\n\tPlayer " + count + " statistics: LOST ALL FUNDS\n\n" + p.Statistics);
+                Console.WriteLine("Starting Funds: " + p.StartingFunds + "\nEnding Funds: " + p.Funds);
+                count++;
             }
         }
 
@@ -99,10 +149,17 @@ namespace BlackJackGuru.Drivers
             shoe.Reset();
             dealer.ResetHands();
             counter.Reset();
+
+            foreach(Player player in removedPlayers)
+            {
+                playerList.Add(player);
+            }
+
+            removedPlayers.Clear();
+
             foreach(Player player in playerList)
             {
-                player.ResetHands();
-                player.ResetStatistics();
+                player.ResetAll();
             }
         }
 
@@ -133,15 +190,15 @@ namespace BlackJackGuru.Drivers
         {
             if (playerHand.Busted)
             {
-                player.Statistics.RecordLoss();                
+                player.RecordLoss();                
             }
             else if(playerHand.HasBlackjack && dealer.HasBlackjack)
             {
-                player.Statistics.RecordPush();
+                player.RecordPush();
             }
             else if (dealer.Busted)
             {
-                player.Statistics.RecordWin();
+                player.RecordWin(playerHand.HasBlackjack);
             }
             else
             {
@@ -150,15 +207,15 @@ namespace BlackJackGuru.Drivers
 
                 if (dealerValue == playerValue)
                 {
-                    player.Statistics.RecordPush();
+                    player.RecordPush();
                 }
                 else if(playerValue > dealerValue)
                 {
-                    player.Statistics.RecordWin();
+                    player.RecordWin(playerHand.HasBlackjack);
                 }
                 else
                 {
-                    player.Statistics.RecordLoss();
+                    player.RecordLoss();
                 }
             }
         }
@@ -344,6 +401,9 @@ namespace BlackJackGuru.Drivers
         private void InitializeSimulationWithUserInput()
         {
             string input = string.Empty;
+            int bettingStrategy;
+            int startingFunds;
+            int minimumBet;
 
             Console.WriteLine("\nPlease enter the number of players.");
             input = Console.ReadLine();
@@ -372,12 +432,46 @@ namespace BlackJackGuru.Drivers
                 input = Console.ReadLine();
             }
 
+            Console.WriteLine("\nPlease enter the starting funds of the players.");
+            input = Console.ReadLine();
+
+            while (!int.TryParse(input, out startingFunds))
+            {
+                Console.WriteLine("\nInput: \"" + input + "\" is not a valid integer. Please enter a valid integer for the starting funds of the players.");
+                input = Console.ReadLine();
+            }
+
+            Console.WriteLine("\nPlease enter the minimum bet of the players.");
+            input = Console.ReadLine();
+
+            while (!int.TryParse(input, out minimumBet))
+            {
+                Console.WriteLine("\nInput: \"" + input + "\" is not a valid integer. Please enter a valid integer for the minimum bet of the players.");
+                input = Console.ReadLine();
+            }
+
+            Console.WriteLine("\nPlease choose a betting strategy: \n\t1 - Manhattan\n\t2 - Martingale");
+            input = Console.ReadLine();
+
+            while (!int.TryParse(input, out bettingStrategy))
+            {
+                Console.WriteLine("\nInput: \"" + input + "\" is not a valid integer. Please enter a valid integer (1 or 2) for a betting strategy.");
+                input = Console.ReadLine();
+            }
+
             shoe = new Shoe(numberOfDecksInShoe);
             counter = new HiLoCounter(numberOfDecksInShoe);
 
             for (int i=0; i<numberOfPlayers; i++)
             {
-                playerList.Add(new Player());
+                if(bettingStrategy == 1)
+                {
+                    playerList.Add(new Player(typeof(Manhattan), startingFunds, minimumBet));
+                }
+                else
+                {
+                    playerList.Add(new Player(typeof(Martingale), startingFunds, minimumBet));
+                }                
             }
         }
 
